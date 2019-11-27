@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 class InferenceClient {
@@ -47,18 +48,20 @@ class InferenceClient {
         try {
             String output = in.readLine();
             JSONArray newSymbolsJson = new JSONArray(output);
-            System.out.println(newSymbolsJson.toString());
+//            System.out.println(newSymbolsJson.toString());
             List<MessageTypeSymbol> newSymbols = new ArrayList<>(newSymbolsJson.length());
             for (Object objectJson : newSymbolsJson) {
                 JSONObject symbolJson = (JSONObject)objectJson;
                 newSymbols.add(MessageTypeSymbol.fromJson(symbolJson));
             }
+            System.out.println("Probe query found:");
+            newSymbols.forEach(msg -> System.out.println(msg.getPredicateDescription()));
             return newSymbols;
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return new ArrayList<MessageTypeSymbol>();
+        return new ArrayList<>();
     }
 
     boolean sendMembershipQuery(Query<MessageTypeSymbol, Boolean> query) {
@@ -89,6 +92,46 @@ class InferenceClient {
         }
 
         return false;
+    }
+
+    private JSONObject queryToJson(Query<MessageTypeSymbol, Boolean> query) {
+        JSONObject queryJson = new JSONObject();
+        JSONArray querySymbolsJson = new JSONArray();
+        for (MessageTypeSymbol symbol : query.getInput()) {
+            querySymbolsJson.put(symbol.asJSON());
+        }
+        queryJson.put("input", querySymbolsJson);
+        return queryJson;
+    }
+
+    void sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
+        JSONObject batchJson = new JSONObject();
+        batchJson.put("type", "membership_batch");
+
+        JSONArray queriesArrayJson = new JSONArray();
+        for (Query<MessageTypeSymbol, Boolean> query : collection) {
+            queriesArrayJson.put(queryToJson(query));
+        }
+        batchJson.put("inputs", queriesArrayJson);
+        out.println(batchJson.toString());
+        out.println("DONE");
+
+        try {
+
+            for (Query<MessageTypeSymbol, Boolean> query : collection) {
+                String output = in.readLine();
+                System.out.println(output);
+
+                if (output.equals("True")) {
+                    query.answer(true);
+                } else {
+                    query.answer(false);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     void stopConnection() throws IOException {

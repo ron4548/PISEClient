@@ -35,6 +35,7 @@ public class MyTest {
         InferenceClient client = new InferenceClient();
 
         try {
+//            client.startConnection("10.10.43.26", 8080);
             client.startConnection("127.0.0.1", 8080);
         } catch (IOException e) {
             e.printStackTrace();
@@ -62,7 +63,7 @@ public class MyTest {
 
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 1);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2);
 
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
         boolean init = false;
@@ -104,6 +105,10 @@ public class MyTest {
             client.stopConnection();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+
+        for (MessageTypeSymbol mts : alphabet) {
+            System.out.printf("MSG ID %d: %s\n", mts.getId(), mts.getPredicateDescription());
         }
 
         Duration duration = Duration.between(startTime, LocalDateTime.now());
