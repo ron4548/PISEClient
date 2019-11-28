@@ -20,6 +20,10 @@ public class MessageTypeSymbol {
         return new MessageTypeSymbol(id, type, name, predicate);
     }
 
+    public boolean isAny() {
+        return this.predicate.size() == 0;
+    }
+
     public enum Type {
         SEND,
         RECEIVE

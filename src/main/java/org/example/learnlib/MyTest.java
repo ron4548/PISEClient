@@ -81,6 +81,10 @@ public class MyTest {
                 List<MessageTypeSymbol> toAdd = new ArrayList<>(symbols);
                 symbols.clear();
                 toAdd.forEach(symbol -> {
+                    if (symbol.isAny()) {
+                        System.out.println("Ignoring ANY symbol...");
+                        return;
+                    }
                     cacheOracle.addAlphabetSymbol(symbol);
                     learner.addAlphabetSymbol(symbol);
                 });
