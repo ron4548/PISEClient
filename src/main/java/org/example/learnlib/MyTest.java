@@ -63,7 +63,7 @@ public class MyTest {
 
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 80);
 
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
         boolean init = false;
