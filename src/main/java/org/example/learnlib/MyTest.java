@@ -42,7 +42,7 @@ public class MyTest {
         }
 
         List<MessageTypeSymbol> symbols = client.probe(prefix, alphabet);
-
+        symbols.removeIf(MessageTypeSymbol::isAny);
         alphabet.addAll(symbols);
         symbols.clear();
 
