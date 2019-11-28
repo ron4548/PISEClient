@@ -1,5 +1,6 @@
 package org.example.learnlib;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import de.learnlib.api.query.Query;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
@@ -104,7 +105,7 @@ class InferenceClient {
         return queryJson;
     }
 
-    void sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
+    Boolean[] sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
         JSONObject batchJson = new JSONObject();
         batchJson.put("type", "membership_batch");
 
@@ -112,26 +113,32 @@ class InferenceClient {
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
             queriesArrayJson.put(queryToJson(query));
         }
-        batchJson.put("inputs", queriesArrayJson);
+        batchJson.put("queries", queriesArrayJson);
         out.println(batchJson.toString());
         out.println("DONE");
-
+        int i = 0;
+        Boolean[] results = new Boolean[collection.size()];
         try {
 
             for (Query<MessageTypeSymbol, Boolean> query : collection) {
                 String output = in.readLine();
-                System.out.println(output);
+//                System.out.println(output);
 
                 if (output.equals("True")) {
                     query.answer(true);
+                    results[i++] = true;
                 } else {
                     query.answer(false);
+                    results[i++] = false;
                 }
+
+                System.out.println(query.toString());
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
 
+        return results;
     }
 
     void stopConnection() throws IOException {

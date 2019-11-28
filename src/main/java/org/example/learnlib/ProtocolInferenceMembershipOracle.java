@@ -17,8 +17,12 @@ public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMe
 
     @Override
     public void processQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
+        if (collection.size() == 0) return;
+        Boolean[] results = client.sendBatchMembershipQueries(collection);
+        int i = 0;
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
-            if (client.sendMembershipQuery(query)) {
+            if (results[i++]) {
+//            if (client.sendMembershipQuery(query)) {
                 if (this.listener != null) {
                     listener.onMembershipTrue(query);
                 }
