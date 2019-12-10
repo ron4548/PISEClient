@@ -77,7 +77,7 @@ public class MessageTypeSymbol {
 
     @Override
     public int hashCode() {
-        return this.name.hashCode();
+        return this.getPredicateDescription().hashCode();
     }
 
     JSONObject asJSON() {
@@ -95,7 +95,7 @@ public class MessageTypeSymbol {
 
     String getPredicateDescription() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("[%s] ", this.name));
+        sb.append(String.format("{%s} [%s] ", this.type.toString(), this.name));
         if (this.predicate.size() == 0) {
             return sb.toString();
         }

@@ -5,6 +5,7 @@ import de.learnlib.api.query.Query;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMembershipOracle<MessageTypeSymbol> {
 
@@ -18,17 +19,11 @@ public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMe
     @Override
     public void processQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
         if (collection.size() == 0) return;
-        Boolean[] results = client.sendBatchMembershipQueries(collection);
-        int i = 0;
-        for (Query<MessageTypeSymbol, Boolean> query : collection) {
-            if (results[i++]) {
-//            if (client.sendMembershipQuery(query)) {
-                if (this.listener != null) {
-                    listener.onMembershipTrue(query);
-                }
-            }
-
+        Set<MessageTypeSymbol> results = client.sendBatchMembershipQueries(collection);
+        if (this.listener != null) {
+            listener.onNewSymbols(results);
         }
+
     }
 
     void setListener(NewSymbolFoundListener listener) {
@@ -36,6 +31,6 @@ public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMe
     }
 
     public interface NewSymbolFoundListener {
-        void onMembershipTrue(Query<MessageTypeSymbol, Boolean> query);
+        void onNewSymbols(Set<MessageTypeSymbol> symbols);
     }
 }

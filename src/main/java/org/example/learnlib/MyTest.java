@@ -33,7 +33,7 @@ public class MyTest {
         Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
 
         InferenceClient client = new InferenceClient();
-
+        client.setAlphabet(alphabet);
         try {
 //            client.startConnection("10.10.43.26", 8080);
             client.startConnection("127.0.0.1", 8080);
@@ -41,10 +41,7 @@ public class MyTest {
             e.printStackTrace();
         }
 
-        List<MessageTypeSymbol> symbols = client.probe(prefix, alphabet);
-        symbols.removeIf(MessageTypeSymbol::isAny);
-        alphabet.addAll(symbols);
-        symbols.clear();
+        Set<MessageTypeSymbol> symbols = new HashSet<>();
 
         ProtocolInferenceMembershipOracle internal = new ProtocolInferenceMembershipOracle(client);
         CounterOracle.DFACounterOracle<MessageTypeSymbol> internalCounter = new CounterOracle.DFACounterOracle<>(internal,"internal");
@@ -55,15 +52,11 @@ public class MyTest {
                 .withAlphabet(alphabet)
                 .withOracle(mqOracle)
                 .create();
-        AtomicLong count_probing = new AtomicLong();
-        ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = query -> {
-            symbols.addAll(client.probe(query.getInput(), alphabet));
-            count_probing.getAndIncrement();
-        };
 
+        ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = symbols::addAll;
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 80);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 20);
 
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
         boolean init = false;
@@ -117,13 +110,12 @@ public class MyTest {
 
         Duration duration = Duration.between(startTime, LocalDateTime.now());
         System.out.printf("******** It took me %s seconds\n", duration.getSeconds());
-        System.out.printf("******** Membership queries: %d\nProbing queries: %d\n", mqOracle.getCount(), count_probing.get());
-        System.out.printf("******** Membership queries: %d\nProbing queries: %d\n", mqOracle.getCount(), count_probing.get());
+        System.out.printf("******** Membership queries: %d\n", mqOracle.getCount());
         System.out.printf("******** Cache miss rate: %f\n", (float)internalCounter.getCount() / mqOracle.getCount());
         DFA<?, MessageTypeSymbol> result = learner.getHypothesisModel();
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter("result_model.dot"));
-            GraphDOT.write(result,alphabet, writer);
+            GraphDOT.write(result, alphabet, writer);
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();

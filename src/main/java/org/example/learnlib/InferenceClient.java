@@ -1,6 +1,5 @@
 package org.example.learnlib;
 
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import de.learnlib.api.query.Query;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
@@ -12,14 +11,17 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 class InferenceClient {
     private Socket clientSocket;
     private PrintWriter out;
     private BufferedReader in;
+    private Alphabet<MessageTypeSymbol> alphabet;
+
+    public void setAlphabet(Alphabet<MessageTypeSymbol> alphabet) {
+        this.alphabet = alphabet;
+    }
 
     void startConnection(String ip, int port) throws IOException {
         clientSocket = new Socket(ip, port);
@@ -27,20 +29,12 @@ class InferenceClient {
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
     }
 
+    @Deprecated
     List<MessageTypeSymbol> probe(Word<MessageTypeSymbol> prefix, Alphabet<MessageTypeSymbol> knownSymbols) {
         JSONObject queryJson = new JSONObject();
         queryJson.put("type", "probe");
-        JSONArray prefixSymbolsJson = new JSONArray();
-        for (MessageTypeSymbol symbol : prefix) {
-            prefixSymbolsJson.put(symbol.asJSON());
-        }
-        queryJson.put("prefix", prefixSymbolsJson);
-
-        JSONArray alphabetJson = new JSONArray();
-        for (MessageTypeSymbol symbol : knownSymbols) {
-            alphabetJson.put(symbol.asJSON());
-        }
-        queryJson.put("alphabet", alphabetJson);
+        queryJson.put("prefix", symbolsArrayToJson(prefix.asList()));
+        queryJson.put("alphabet", symbolsArrayToJson(knownSymbols));
 
         out.println(queryJson.toString());
 
@@ -65,6 +59,7 @@ class InferenceClient {
         return new ArrayList<>();
     }
 
+    @Deprecated
     boolean sendMembershipQuery(Query<MessageTypeSymbol, Boolean> query) {
         JSONObject queryJson = new JSONObject();
         queryJson.put("type", "membership");
@@ -95,20 +90,29 @@ class InferenceClient {
         return false;
     }
 
+    private JSONArray symbolsArrayToJson(Collection<MessageTypeSymbol> symbols) {
+        JSONArray symbolsArrayJson = new JSONArray();
+        for (MessageTypeSymbol symbol : symbols) {
+            symbolsArrayJson.put(symbol.asJSON());
+        }
+
+        return symbolsArrayJson;
+    }
+
     private JSONObject queryToJson(Query<MessageTypeSymbol, Boolean> query) {
         JSONObject queryJson = new JSONObject();
-        JSONArray querySymbolsJson = new JSONArray();
-        for (MessageTypeSymbol symbol : query.getInput()) {
-            querySymbolsJson.put(symbol.asJSON());
-        }
-        queryJson.put("input", querySymbolsJson);
+        queryJson.put("input", symbolsArrayToJson(query.getInput().asList()));
         return queryJson;
     }
 
-    Boolean[] sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
+    Set<MessageTypeSymbol> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
         JSONObject batchJson = new JSONObject();
         batchJson.put("type", "membership_batch");
 
+        // Put current alphabet, for probing
+        batchJson.put("alphabet", symbolsArrayToJson(this.alphabet));
+
+        // Put all the queries
         JSONArray queriesArrayJson = new JSONArray();
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
             queriesArrayJson.put(queryToJson(query));
@@ -116,29 +120,39 @@ class InferenceClient {
         batchJson.put("queries", queriesArrayJson);
         out.println(batchJson.toString());
         out.println("DONE");
-        int i = 0;
-        Boolean[] results = new Boolean[collection.size()];
+        Set<MessageTypeSymbol> discoveredSymbols = new HashSet<>();
         try {
+            String output = in.readLine();
+            JSONArray queryResultsJson = new JSONArray(output);
 
+            int i = 0;
             for (Query<MessageTypeSymbol, Boolean> query : collection) {
-                String output = in.readLine();
-//                System.out.println(output);
+                JSONObject queryResultJson = (JSONObject)queryResultsJson.get(i++);
+                boolean result = queryResultJson.getBoolean("answer");
+                query.answer(result);
 
-                if (output.equals("True")) {
-                    query.answer(true);
-                    results[i++] = true;
-                } else {
-                    query.answer(false);
-                    results[i++] = false;
+                if (result) {
+                    JSONArray newSymbolsJson = new JSONArray(queryResultJson.getString("probe_result"));
+                    List<MessageTypeSymbol> newSymbols = new ArrayList<>(newSymbolsJson.length());
+                    for (Object objectJson : newSymbolsJson) {
+                        JSONObject symbolJson = (JSONObject) objectJson;
+                        newSymbols.add(MessageTypeSymbol.fromJson(symbolJson));
+                    }
+
+                    discoveredSymbols.addAll(newSymbols);
+                    System.out.println(query);
+                    if (discoveredSymbols.size() > 0) {
+                        System.out.println("Probing found:");
+                        discoveredSymbols.forEach(msg -> System.out.println(msg.getPredicateDescription()));
+                    }
                 }
-
-                System.out.println(query.toString());
             }
+            return discoveredSymbols;
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        return results;
+        return null;
     }
 
     void stopConnection() throws IOException {
