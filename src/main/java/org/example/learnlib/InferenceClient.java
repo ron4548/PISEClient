@@ -105,7 +105,7 @@ class InferenceClient {
         return queryJson;
     }
 
-    Set<MessageTypeSymbol> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
+    List<ProbingResult> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
         JSONObject batchJson = new JSONObject();
         batchJson.put("type", "membership_batch");
 
@@ -120,7 +120,7 @@ class InferenceClient {
         batchJson.put("queries", queriesArrayJson);
         out.println(batchJson.toString());
         out.println("DONE");
-        Set<MessageTypeSymbol> discoveredSymbols = new HashSet<>();
+        List<ProbingResult> results = new ArrayList<>();
         try {
             String output = in.readLine();
             JSONArray queryResultsJson = new JSONArray(output);
@@ -133,21 +133,21 @@ class InferenceClient {
 
                 if (result) {
                     JSONArray newSymbolsJson = new JSONArray(queryResultJson.getString("probe_result"));
-                    List<MessageTypeSymbol> newSymbols = new ArrayList<>(newSymbolsJson.length());
+                    Set<MessageTypeSymbol> newSymbols = new HashSet<>(newSymbolsJson.length());
                     for (Object objectJson : newSymbolsJson) {
                         JSONObject symbolJson = (JSONObject) objectJson;
                         newSymbols.add(MessageTypeSymbol.fromJson(symbolJson));
                     }
 
-                    discoveredSymbols.addAll(newSymbols);
+                    results.add(new ProbingResult(query, newSymbols));
                     System.out.println(query);
-                    if (discoveredSymbols.size() > 0) {
+                    if (newSymbols.size() > 0) {
                         System.out.println("Probing found:");
-                        discoveredSymbols.forEach(msg -> System.out.println(msg.getPredicateDescription()));
+                        newSymbols.forEach(msg -> System.out.println(msg.getPredicateDescription()));
                     }
                 }
             }
-            return discoveredSymbols;
+            return results;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -160,5 +160,23 @@ class InferenceClient {
         in.close();
         out.close();
         clientSocket.close();
+    }
+
+    public static class ProbingResult {
+        private Query<MessageTypeSymbol, Boolean> query;
+        private Set<MessageTypeSymbol> discoveredSymbols = new HashSet<>();
+
+        public ProbingResult(Query<MessageTypeSymbol, Boolean> query, Set<MessageTypeSymbol> discoveredSymbols) {
+            this.query = query;
+            this.discoveredSymbols = discoveredSymbols;
+        }
+
+        public Query<MessageTypeSymbol, Boolean> getQuery() {
+            return query;
+        }
+
+        public Set<MessageTypeSymbol> getDiscoveredSymbols() {
+            return discoveredSymbols;
+        }
     }
 }

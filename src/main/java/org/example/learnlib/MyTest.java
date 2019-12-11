@@ -8,6 +8,7 @@ import de.learnlib.filter.cache.dfa.DFACacheOracle;
 import de.learnlib.filter.statistic.oracle.CounterOracle;
 import de.learnlib.oracle.equivalence.*;
 import net.automatalib.automata.fsa.DFA;
+import net.automatalib.incremental.dfa.tree.IncrementalPCDFATreeBuilder;
 import net.automatalib.serialization.dot.GraphDOT;
 import net.automatalib.visualization.Visualization;
 import net.automatalib.words.Alphabet;
@@ -17,6 +18,7 @@ import net.automatalib.words.impl.SimpleAlphabet;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -29,7 +31,6 @@ public class MyTest {
     public static void main(String[] args) {
 
         LocalDateTime startTime = LocalDateTime.now();
-        Word<MessageTypeSymbol> prefix = Word.epsilon();
         Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
 
         InferenceClient client = new InferenceClient();
@@ -41,11 +42,23 @@ public class MyTest {
             e.printStackTrace();
         }
 
-        Set<MessageTypeSymbol> symbols = new HashSet<>();
+        List<InferenceClient.ProbingResult> probingResults = new ArrayList<>();
 
         ProtocolInferenceMembershipOracle internal = new ProtocolInferenceMembershipOracle(client);
         CounterOracle.DFACounterOracle<MessageTypeSymbol> internalCounter = new CounterOracle.DFACounterOracle<>(internal,"internal");
         DFACacheOracle<MessageTypeSymbol> cacheOracle = DFACacheOracle.createTreePCCacheOracle(alphabet, internalCounter);
+
+        IncrementalPCDFATreeBuilder<MessageTypeSymbol> incDfa = null;
+
+        Field f = null; //NoSuchFieldException
+        try {
+            f = cacheOracle.getClass().getDeclaredField("incDfa");
+            f.setAccessible(true);
+            incDfa = (IncrementalPCDFATreeBuilder<MessageTypeSymbol>)f.get(cacheOracle);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            e.printStackTrace();
+        }
+
         CounterOracle.DFACounterOracle<MessageTypeSymbol> mqOracle = new CounterOracle.DFACounterOracle<>(cacheOracle, "cache");
         
         ClassicLStarDFA<MessageTypeSymbol> learner = new ClassicLStarDFABuilder<MessageTypeSymbol>()
@@ -53,7 +66,8 @@ public class MyTest {
                 .withOracle(mqOracle)
                 .create();
 
-        ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = symbols::addAll;
+        IncrementalPCDFATreeBuilder<MessageTypeSymbol> finalIncDfa = incDfa;
+        ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
         EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 20);
@@ -71,17 +85,31 @@ public class MyTest {
                 }
             }
             do {
-                List<MessageTypeSymbol> toAdd = new ArrayList<>(symbols);
-                symbols.clear();
-                toAdd.forEach(symbol -> {
-                    if (symbol.isAny()) {
-                        System.out.println("Ignoring ANY symbol...");
-                        return;
-                    }
-                    cacheOracle.addAlphabetSymbol(symbol);
-                    learner.addAlphabetSymbol(symbol);
+                List<InferenceClient.ProbingResult> toAdd = new ArrayList<>(probingResults);
+                probingResults.clear();
+                toAdd.forEach(result -> {
+                    result.getDiscoveredSymbols().forEach(newSymbol -> {
+                        if (newSymbol.isAny()) {
+                            System.out.println("Ignoring ANY symbol...");
+                            return;
+                        }
+
+                        cacheOracle.addAlphabetSymbol(newSymbol);
+                        learner.addAlphabetSymbol(newSymbol);
+                    });
                 });
-            } while(!symbols.isEmpty());
+                toAdd.forEach(result -> {
+                    Set<MessageTypeSymbol> discoeveredSymbols = result.getDiscoveredSymbols();
+                    Word<MessageTypeSymbol> prefix = result.getQuery().getInput();
+
+                    for (MessageTypeSymbol symbol : alphabet) {
+                        if (!discoeveredSymbols.contains(symbol)) {
+                            Word<MessageTypeSymbol> newWord = prefix.append(symbol);
+                            finalIncDfa.insert(newWord, false);
+                        }
+                    }
+                });
+            } while(!probingResults.isEmpty());
 //            Visualization.visualize(learner.getHypothesisModel(), alphabet);
             System.out.println("******** Looking for counterexample...");
             counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);

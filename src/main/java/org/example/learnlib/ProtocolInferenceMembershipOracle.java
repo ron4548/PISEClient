@@ -19,7 +19,7 @@ public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMe
     @Override
     public void processQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
         if (collection.size() == 0) return;
-        Set<MessageTypeSymbol> results = client.sendBatchMembershipQueries(collection);
+        List<InferenceClient.ProbingResult> results = client.sendBatchMembershipQueries(collection);
         if (this.listener != null) {
             listener.onNewSymbols(results);
         }
@@ -31,6 +31,6 @@ public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMe
     }
 
     public interface NewSymbolFoundListener {
-        void onNewSymbols(Set<MessageTypeSymbol> symbols);
+        void onNewSymbols(List<InferenceClient.ProbingResult> results);
     }
 }
