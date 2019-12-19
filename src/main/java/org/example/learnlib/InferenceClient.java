@@ -176,12 +176,14 @@ class InferenceClient {
         private final long preProbeTime;
         private final long probeTime;
         private final Query<MessageTypeSymbol, Boolean> query;
+        private final boolean answer;
 
-        public QueryStats(Query<MessageTypeSymbol, Boolean> query, long membership_time, long pre_probe_time, long probe_time) {
+        public QueryStats(Query<MessageTypeSymbol, Boolean> query, boolean answer, long membership_time, long pre_probe_time, long probe_time) {
             this.membershipTime = membership_time;
             this.preProbeTime = pre_probe_time;
             this.probeTime = probe_time;
             this.query = query;
+            this.answer = answer;
         }
 
         public static QueryStats fromJson(Query<MessageTypeSymbol, Boolean> query, JSONObject queryResultJson) {
@@ -189,7 +191,7 @@ class InferenceClient {
             long preProbeTime = queryResultJson.has("pre_probe_time") ? queryResultJson.getLong("pre_probe_time") : 0;
             long probeTime = queryResultJson.has("probe_time") ? queryResultJson.getLong("probe_time") : 0;
 
-            return new QueryStats(query, membershipTime, preProbeTime, probeTime);
+            return new QueryStats(query, queryResultJson.getBoolean("answer"), membershipTime, preProbeTime, probeTime);
         }
 
         public long getMembershipTime() {
@@ -202,6 +204,25 @@ class InferenceClient {
 
         public long getProbeTime() {
             return probeTime;
+        }
+
+        public Query<MessageTypeSymbol, Boolean> getQuery() {
+            return query;
+        }
+
+        public boolean getAnswer() {
+            return answer;
+        }
+
+        @Override
+        public String toString() {
+            return "QueryStats{" +
+                    "membershipTime=" + membershipTime +
+                    ", preProbeTime=" + preProbeTime +
+                    ", probeTime=" + probeTime +
+                    ", query=" + query +
+                    ", answer=" + answer +
+                    '}';
         }
     }
 }
