@@ -226,3 +226,6 @@ Temporary Items
 .apdisk
 
 # End of https://www.gitignore.io/api/osx,java,eclipse,intellij,maven
+stats.csv
+
+result_model.dot

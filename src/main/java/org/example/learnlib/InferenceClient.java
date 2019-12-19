@@ -12,6 +12,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 class InferenceClient {
     private Socket clientSocket;
@@ -223,6 +225,18 @@ class InferenceClient {
                     ", query=" + query +
                     ", answer=" + answer +
                     '}';
+        }
+        
+        public String convertToCSV() {
+            String[] data = new String[6];
+            data[0] = this.query.getInput().toString();
+            data[1] = String.valueOf(this.answer);
+            data[2] = String.valueOf(this.membershipTime);
+            data[3] = String.valueOf(this.preProbeTime);
+            data[4] = String.valueOf(this.probeTime);
+            data[5] = String.valueOf(this.query.getInput().length());
+
+            return String.join(",", data) + "\n";
         }
     }
 }

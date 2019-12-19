@@ -112,6 +112,19 @@ public class MyTest {
         System.out.printf("******** It took me %s seconds\n", duration.getSeconds());
         System.out.printf("******** Membership queries: %d\n", mqOracle.getCount());
         System.out.printf("******** Cache miss rate: %f\n", (float)internalCounter.getCount() / mqOracle.getCount());
+
+        List<InferenceClient.QueryStats> stats = client.getStats();
+
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter("stats.csv"));
+            for (InferenceClient.QueryStats q : stats) {
+                writer.write(q.convertToCSV());
+            }
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         DFA<?, MessageTypeSymbol> result = learner.getHypothesisModel();
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter("result_model.dot"));
