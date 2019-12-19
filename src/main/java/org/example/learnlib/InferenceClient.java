@@ -18,6 +18,7 @@ class InferenceClient {
     private PrintWriter out;
     private BufferedReader in;
     private Alphabet<MessageTypeSymbol> alphabet;
+    private List<QueryStats> stats;
 
     public void setAlphabet(Alphabet<MessageTypeSymbol> alphabet) {
         this.alphabet = alphabet;
@@ -27,6 +28,7 @@ class InferenceClient {
         clientSocket = new Socket(ip, port);
         out = new PrintWriter(clientSocket.getOutputStream(), true);
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        this.stats = new ArrayList<>();
     }
 
     @Deprecated
@@ -131,6 +133,9 @@ class InferenceClient {
                 boolean result = queryResultJson.getBoolean("answer");
                 query.answer(result);
 
+                QueryStats s = QueryStats.fromJson(query, queryResultJson);
+                this.stats.add(s);
+
                 if (result) {
                     JSONArray newSymbolsJson = new JSONArray(queryResultJson.getString("probe_result"));
                     List<MessageTypeSymbol> newSymbols = new ArrayList<>(newSymbolsJson.length());
@@ -160,5 +165,43 @@ class InferenceClient {
         in.close();
         out.close();
         clientSocket.close();
+    }
+
+    public List<QueryStats> getStats() {
+        return stats;
+    }
+
+    static class QueryStats {
+        private final long membershipTime;
+        private final long preProbeTime;
+        private final long probeTime;
+        private final Query<MessageTypeSymbol, Boolean> query;
+
+        public QueryStats(Query<MessageTypeSymbol, Boolean> query, long membership_time, long pre_probe_time, long probe_time) {
+            this.membershipTime = membership_time;
+            this.preProbeTime = pre_probe_time;
+            this.probeTime = probe_time;
+            this.query = query;
+        }
+
+        public static QueryStats fromJson(Query<MessageTypeSymbol, Boolean> query, JSONObject queryResultJson) {
+            long membershipTime = queryResultJson.getLong("membership_time");
+            long preProbeTime = queryResultJson.has("pre_probe_time") ? queryResultJson.getLong("pre_probe_time") : 0;
+            long probeTime = queryResultJson.has("probe_time") ? queryResultJson.getLong("probe_time") : 0;
+
+            return new QueryStats(query, membershipTime, preProbeTime, probeTime);
+        }
+
+        public long getMembershipTime() {
+            return membershipTime;
+        }
+
+        public long getPreProbeTime() {
+            return preProbeTime;
+        }
+
+        public long getProbeTime() {
+            return probeTime;
+        }
     }
 }
