@@ -150,7 +150,7 @@ class InferenceClient {
                     System.out.println(query);
                     if (discoveredSymbols.size() > 0) {
                         System.out.println("Probing found:");
-                        discoveredSymbols.forEach(msg -> System.out.println(msg.getPredicateDescription()));
+                        discoveredSymbols.forEach(msg -> System.out.println(msg.toString()));
                     }
                 }
             }
