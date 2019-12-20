@@ -8,6 +8,7 @@ import de.learnlib.filter.cache.dfa.DFACacheOracle;
 import de.learnlib.filter.statistic.oracle.CounterOracle;
 import de.learnlib.oracle.equivalence.*;
 import net.automatalib.automata.fsa.DFA;
+import net.automatalib.incremental.dfa.tree.IncrementalPCDFATreeBuilder;
 import net.automatalib.serialization.dot.GraphDOT;
 import net.automatalib.visualization.Visualization;
 import net.automatalib.words.Alphabet;
@@ -17,6 +18,7 @@ import net.automatalib.words.impl.SimpleAlphabet;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -29,7 +31,6 @@ public class MyTest {
     public static void main(String[] args) {
 
         LocalDateTime startTime = LocalDateTime.now();
-        Word<MessageTypeSymbol> prefix = Word.epsilon();
         Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
 
         InferenceClient client = new InferenceClient();
@@ -41,19 +42,21 @@ public class MyTest {
             e.printStackTrace();
         }
 
-        Set<MessageTypeSymbol> symbols = new HashSet<>();
+        List<InferenceClient.ProbingResult> probingResults = new ArrayList<>();
 
         ProtocolInferenceMembershipOracle internal = new ProtocolInferenceMembershipOracle(client);
         CounterOracle.DFACounterOracle<MessageTypeSymbol> internalCounter = new CounterOracle.DFACounterOracle<>(internal,"internal");
         DFACacheOracle<MessageTypeSymbol> cacheOracle = DFACacheOracle.createTreePCCacheOracle(alphabet, internalCounter);
-        CounterOracle.DFACounterOracle<MessageTypeSymbol> mqOracle = new CounterOracle.DFACounterOracle<>(cacheOracle, "cache");
+        ProbingCache probingCache = new ProbingCache(cacheOracle);
+
+        CounterOracle.DFACounterOracle<MessageTypeSymbol> mqOracle = new CounterOracle.DFACounterOracle<>(probingCache, "cache");
         
         ClassicLStarDFA<MessageTypeSymbol> learner = new ClassicLStarDFABuilder<MessageTypeSymbol>()
                 .withAlphabet(alphabet)
                 .withOracle(mqOracle)
                 .create();
 
-        ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = symbols::addAll;
+        ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
         EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 20);
@@ -71,17 +74,21 @@ public class MyTest {
                 }
             }
             do {
-                List<MessageTypeSymbol> toAdd = new ArrayList<>(symbols);
-                symbols.clear();
-                toAdd.forEach(symbol -> {
-                    if (symbol.isAny()) {
-                        System.out.println("Ignoring ANY symbol...");
-                        return;
+                List<InferenceClient.ProbingResult> toAdd = new ArrayList<>(probingResults);
+                probingResults.clear();
+                for (InferenceClient.ProbingResult result : toAdd) {
+                    probingCache.insertToCache(result);
+                    for (MessageTypeSymbol newSymbol : result.getDiscoveredSymbols()) {
+                        if (newSymbol.isAny()) {
+                            System.out.println("Ignoring ANY symbol...");
+                            continue;
+                        }
+
+                        cacheOracle.addAlphabetSymbol(newSymbol);
+                        learner.addAlphabetSymbol(newSymbol);
                     }
-                    cacheOracle.addAlphabetSymbol(symbol);
-                    learner.addAlphabetSymbol(symbol);
-                });
-            } while(!symbols.isEmpty());
+                }
+            } while(!probingResults.isEmpty());
 //            Visualization.visualize(learner.getHypothesisModel(), alphabet);
             System.out.println("******** Looking for counterexample...");
             counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
