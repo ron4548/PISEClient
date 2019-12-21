@@ -4,10 +4,8 @@ import de.learnlib.api.oracle.MembershipOracle;
 import de.learnlib.api.query.Query;
 import net.automatalib.words.Word;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Stream;
 
 public class ProbingCache implements MembershipOracle.DFAMembershipOracle<MessageTypeSymbol> {
 
@@ -25,7 +23,9 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
 
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
             for (InferenceClient.ProbingResult res : cache) {
-
+                if (res.getDiscoveredSymbols().stream().anyMatch(MessageTypeSymbol::isAny)) {
+                    continue;
+                }
                 Word<MessageTypeSymbol> cachedPrefix = res.getQuery().getInput();
                 Set<MessageTypeSymbol> cachedContinuations = res.getDiscoveredSymbols();
                 if (cachedPrefix.isPrefixOf(query.getInput()) && cachedPrefix.length() < query.getInput().length()) {

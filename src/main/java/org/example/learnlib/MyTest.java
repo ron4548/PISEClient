@@ -4,6 +4,7 @@ import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFA;
 import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFABuilder;
 import de.learnlib.api.oracle.EquivalenceOracle;
 import de.learnlib.api.query.DefaultQuery;
+import de.learnlib.datastructure.observationtable.writer.ObservationTableASCIIWriter;
 import de.learnlib.filter.cache.dfa.DFACacheOracle;
 import de.learnlib.filter.statistic.oracle.CounterOracle;
 import de.learnlib.oracle.equivalence.*;
@@ -46,10 +47,10 @@ public class MyTest {
 
         ProtocolInferenceMembershipOracle internal = new ProtocolInferenceMembershipOracle(client);
         CounterOracle.DFACounterOracle<MessageTypeSymbol> internalCounter = new CounterOracle.DFACounterOracle<>(internal,"internal");
-        DFACacheOracle<MessageTypeSymbol> cacheOracle = DFACacheOracle.createTreePCCacheOracle(alphabet, internalCounter);
-        ProbingCache probingCache = new ProbingCache(cacheOracle);
+        ProbingCache probingCache = new ProbingCache(internalCounter);
+        DFACacheOracle<MessageTypeSymbol> cacheOracle = DFACacheOracle.createTreePCCacheOracle(alphabet, probingCache);
 
-        CounterOracle.DFACounterOracle<MessageTypeSymbol> mqOracle = new CounterOracle.DFACounterOracle<>(probingCache, "cache");
+        CounterOracle.DFACounterOracle<MessageTypeSymbol> mqOracle = new CounterOracle.DFACounterOracle<>(cacheOracle, "cache");
         
         ClassicLStarDFA<MessageTypeSymbol> learner = new ClassicLStarDFABuilder<MessageTypeSymbol>()
                 .withAlphabet(alphabet)
@@ -59,11 +60,13 @@ public class MyTest {
         ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 20);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 400);
 
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
         boolean init = false;
         do {
+            System.out.println("Final observation table:");
+            new ObservationTableASCIIWriter<>().write(learner.getObservationTable(), System.out);
             if (!init) {
                 learner.startLearning();
                 init = true;
