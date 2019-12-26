@@ -1,7 +1,9 @@
 package org.example.learnlib;
 
 import de.learnlib.api.oracle.MembershipOracle;
+import de.learnlib.api.query.DefaultQuery;
 import de.learnlib.api.query.Query;
+import net.automatalib.automata.fsa.DFA;
 import net.automatalib.words.Word;
 
 import java.util.*;
@@ -32,8 +34,9 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
                     if (!cachedContinuations.contains(query.getInput().getSymbol(cachedPrefix.length()))){
                         query.answer(false);
                         answered.add(query);
-                        System.out.println(query);
-                        System.out.println("Answered by cache - False!");
+//                        System.out.println(query);
+//                        System.out.println("Answered by cache - False!");
+//                        System.out.println("Prefix: " + cachedPrefix.toString());
                         break;
                     }
                 }
@@ -47,6 +50,27 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
 
     public void insertToCache(InferenceClient.ProbingResult result) {
         this.cache.add(result);
-        System.out.printf("Cache size is %d\n", this.cache.size());
+//        System.out.println("####### Added to cache:");
+//        System.out.println(result.getQuery().getInput());
+//        System.out.println("Probing options: " + result.getDiscoveredSymbols().toString());
+//        System.out.printf("Cache size is %d\n", this.cache.size());
+    }
+
+    public DefaultQuery<MessageTypeSymbol, Boolean> findCounterexample(DFA<?, MessageTypeSymbol> hypothesis) {
+
+        for (InferenceClient.ProbingResult result : this.cache) {
+            for (MessageTypeSymbol sym : result.getDiscoveredSymbols()){
+                if (sym.isAny()) {
+                    continue;
+                }
+
+                if (!hypothesis.accepts(result.getQuery().getInput().append(sym))) {
+
+                    return new DefaultQuery<>(result.getQuery().getInput().append(sym), true);
+                }
+            }
+        }
+
+        return null;
     }
 }

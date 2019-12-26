@@ -60,13 +60,15 @@ public class MyTest {
         ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 400);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 200);
+
+        eqoracle = new ProtocolInferenceEQOracle(probingCache, eqoracle);
 
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
         boolean init = false;
         do {
-            System.out.println("Final observation table:");
-            new ObservationTableASCIIWriter<>().write(learner.getObservationTable(), System.out);
+//            System.out.println("Final observation table:");
+//            new ObservationTableASCIIWriter<>().write(learner.getObservationTable(), System.out);
             if (!init) {
                 learner.startLearning();
                 init = true;
@@ -94,8 +96,11 @@ public class MyTest {
             } while(!probingResults.isEmpty());
 //            Visualization.visualize(learner.getHypothesisModel(), alphabet);
             System.out.println("******** Looking for counterexample...");
+            LocalDateTime eqStartTime = LocalDateTime.now();
             counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
+            Duration duration = Duration.between(eqStartTime, LocalDateTime.now());
             System.out.printf("******** Conterexample: %s\n", counterexample);
+            System.out.printf("******** Time to find: %d ms\n", duration.getNano() / 1000000);
 
         } while (counterexample != null);
 

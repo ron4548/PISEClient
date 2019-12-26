@@ -11,20 +11,21 @@ import java.util.Collection;
 
 public class ProtocolInferenceEQOracle implements EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> {
 
-    private final InferenceClient client;
+    private final ProbingCache probingCache;
+    private final EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> innerOracle;
 
-    ProtocolInferenceEQOracle(InferenceClient client) {
-        this.client = client;
+    public ProtocolInferenceEQOracle(ProbingCache probingCache, DFAEquivalenceOracle<MessageTypeSymbol> innerOracle) {
+        this.probingCache = probingCache;
+        this.innerOracle = innerOracle;
     }
 
     @Nullable
     @Override
     public DefaultQuery<MessageTypeSymbol, Boolean> findCounterExample(DFA<?, MessageTypeSymbol> hypothesis, Collection<? extends MessageTypeSymbol> alphabet) {
-        try {
-            GraphDOT.write(hypothesis, alphabet, System.out);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
+
+        DefaultQuery<MessageTypeSymbol, Boolean> cex = this.probingCache.findCounterexample(hypothesis);
+
+        return cex == null ? this.innerOracle.findCounterExample(hypothesis, alphabet) : cex;
+
     }
 }

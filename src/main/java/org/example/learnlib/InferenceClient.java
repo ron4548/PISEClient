@@ -110,6 +110,8 @@ class InferenceClient {
     }
 
     List<ProbingResult> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
+        System.out.printf("Sending batch of %d queries...\n", collection.size());
+
         JSONObject batchJson = new JSONObject();
         batchJson.put("type", "membership_batch");
 
