@@ -67,8 +67,6 @@ public class MyTest {
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
         boolean init = false;
         do {
-//            System.out.println("Final observation table:");
-//            new ObservationTableASCIIWriter<>().write(learner.getObservationTable(), System.out);
             if (!init) {
                 learner.startLearning();
                 init = true;
@@ -81,20 +79,27 @@ public class MyTest {
             do {
                 List<InferenceClient.ProbingResult> toAdd = new ArrayList<>(probingResults);
                 probingResults.clear();
+                Set<MessageTypeSymbol> newSymbols = new HashSet<>();
                 for (InferenceClient.ProbingResult result : toAdd) {
                     probingCache.insertToCache(result);
-                    for (MessageTypeSymbol newSymbol : result.getDiscoveredSymbols()) {
-                        if (newSymbol.isAny()) {
-                            System.out.println("Ignoring ANY symbol...");
-                            continue;
-                        }
-
-                        cacheOracle.addAlphabetSymbol(newSymbol);
-                        learner.addAlphabetSymbol(newSymbol);
+                    for (Word<MessageTypeSymbol> newSymbol : result.getPossibleContinuations()) {
+                        newSymbol.forEach(newSymbols::add);
                     }
                 }
+
+                newSymbols.forEach(sl -> {
+                    if (sl.isAny()) {
+                        System.out.println("Ignoring ANY symbol...");
+                        return;
+                    }
+
+                    cacheOracle.addAlphabetSymbol(sl);
+                    learner.addAlphabetSymbol(sl);
+                });
             } while(!probingResults.isEmpty());
 //            Visualization.visualize(learner.getHypothesisModel(), alphabet);
+            System.out.println("Final observation table:");
+            new ObservationTableASCIIWriter<>().write(learner.getObservationTable(), System.out);
             System.out.println("******** Looking for counterexample...");
             LocalDateTime eqStartTime = LocalDateTime.now();
             counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);

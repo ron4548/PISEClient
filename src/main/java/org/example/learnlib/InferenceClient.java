@@ -3,6 +3,7 @@ package org.example.learnlib;
 import de.learnlib.api.query.Query;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
+import net.automatalib.words.WordBuilder;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -141,18 +142,22 @@ class InferenceClient {
                 this.stats.add(s);
 
                 if (result) {
-                    JSONArray newSymbolsJson = new JSONArray(queryResultJson.getString("probe_result"));
-                    Set<MessageTypeSymbol> newSymbols = new HashSet<>(newSymbolsJson.length());
-                    for (Object objectJson : newSymbolsJson) {
-                        JSONObject symbolJson = (JSONObject) objectJson;
-                        newSymbols.add(MessageTypeSymbol.fromJson(symbolJson));
+                    JSONArray possibleContinuationsJson = new JSONArray(queryResultJson.getString("probe_result"));
+                    ArrayList<Word<MessageTypeSymbol>> possibleContinuations = new ArrayList<>(possibleContinuationsJson.length());
+                    for (int j=0; j<possibleContinuationsJson.length(); ++j) {
+                        JSONArray continuationJson = new JSONArray(possibleContinuationsJson.getString(j));
+                        Word<MessageTypeSymbol> word = extractWordFromJson(continuationJson);
+                        if (word.stream().anyMatch(MessageTypeSymbol::isAny)) {
+                            continue;
+                        }
+                        possibleContinuations.add(word);
                     }
 
-                    results.add(new ProbingResult(query, newSymbols));
+                    results.add(new ProbingResult(query, possibleContinuations));
                     System.out.println(query);
-                    if (newSymbols.size() > 0) {
+                    if (possibleContinuations.size() > 0) {
                         System.out.println("Probing found:");
-                        newSymbols.forEach(msg -> System.out.println(msg.toString()));
+                        possibleContinuations.forEach(msg -> System.out.println(msg.toString()));
                     }
                 }
             }
@@ -162,6 +167,17 @@ class InferenceClient {
         }
 
         return null;
+    }
+
+    private Word<MessageTypeSymbol> extractWordFromJson(JSONArray continuationJson) {
+        WordBuilder<MessageTypeSymbol> result = new WordBuilder<>();
+
+        for (Object objectJson : continuationJson) {
+            JSONObject symbolJson = (JSONObject) objectJson;
+            result.add(MessageTypeSymbol.fromJson(symbolJson));
+        }
+
+        return result.toWord();
     }
 
     void stopConnection() throws IOException {
@@ -244,19 +260,22 @@ class InferenceClient {
 
     public static class ProbingResult {
         private Query<MessageTypeSymbol, Boolean> query;
-        private Set<MessageTypeSymbol> discoveredSymbols = new HashSet<>();
+        private List<Word<MessageTypeSymbol>> possibleContinuations;
 
-        public ProbingResult(Query<MessageTypeSymbol, Boolean> query, Set<MessageTypeSymbol> discoveredSymbols) {
+        public ProbingResult(Query<MessageTypeSymbol, Boolean> query, List<Word<MessageTypeSymbol>> possibleContinuations) {
             this.query = query;
-            this.discoveredSymbols = discoveredSymbols;
+            this.possibleContinuations = possibleContinuations;
         }
 
         public Query<MessageTypeSymbol, Boolean> getQuery() {
             return query;
         }
 
-        public Set<MessageTypeSymbol> getDiscoveredSymbols() {
-            return discoveredSymbols;
+        public List<Word<MessageTypeSymbol>> getPossibleContinuations() {
+            return possibleContinuations;
         }
+//        public Set<MessageTypeSymbol> getDiscoveredSymbols() {
+//            return discoveredSymbols;
+//        }
     }
 }

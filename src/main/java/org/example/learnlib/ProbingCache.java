@@ -25,18 +25,34 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
 
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
             for (InferenceClient.ProbingResult res : cache) {
-                if (res.getDiscoveredSymbols().stream().anyMatch(MessageTypeSymbol::isAny)) {
+
+                if (res.getPossibleContinuations().stream().anyMatch(word -> word.getSymbol(0).isAny())) {
                     continue;
                 }
+
+//                if (res.getDiscoveredSymbols().stream().anyMatch(MessageTypeSymbol::isAny)) {
+//                    continue;
+//                }
                 Word<MessageTypeSymbol> cachedPrefix = res.getQuery().getInput();
-                Set<MessageTypeSymbol> cachedContinuations = res.getDiscoveredSymbols();
+//                Set<MessageTypeSymbol> cachedContinuations = res.getDiscoveredSymbols();
+//                if (cachedPrefix.isPrefixOf(query.getInput()) && cachedPrefix.length() < query.getInput().length()) {
+//                    if (!cachedContinuations.contains(query.getInput().getSymbol(cachedPrefix.length()))){
+//                        query.answer(false);
+//                        answered.add(query);
+////                        System.out.println(query);
+////                        System.out.println("Answered by cache - False!");
+////                        System.out.println("Prefix: " + cachedPrefix.toString());
+//                        break;
+//                    }
+//                }
+                List<Word<MessageTypeSymbol>> cachedContinuations = res.getPossibleContinuations();
                 if (cachedPrefix.isPrefixOf(query.getInput()) && cachedPrefix.length() < query.getInput().length()) {
-                    if (!cachedContinuations.contains(query.getInput().getSymbol(cachedPrefix.length()))){
+                    if (cachedContinuations.stream().noneMatch(cont -> cont.getSymbol(0).equals(query.getInput().getSymbol(cachedPrefix.length())))){
                         query.answer(false);
                         answered.add(query);
-//                        System.out.println(query);
-//                        System.out.println("Answered by cache - False!");
-//                        System.out.println("Prefix: " + cachedPrefix.toString());
+                        System.out.println(query);
+                        System.out.println("Answered by cache - False!");
+                        System.out.println("Prefix: " + cachedPrefix.toString());
                         break;
                     }
                 }
@@ -59,14 +75,15 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
     public DefaultQuery<MessageTypeSymbol, Boolean> findCounterexample(DFA<?, MessageTypeSymbol> hypothesis) {
 
         for (InferenceClient.ProbingResult result : this.cache) {
-            for (MessageTypeSymbol sym : result.getDiscoveredSymbols()){
-                if (sym.isAny()) {
-                    continue;
-                }
+            for (Word<MessageTypeSymbol> sym : result.getPossibleContinuations()){
+//                if (sym.isAny()) {
+//                    continue;
+//                }
 
-                if (!hypothesis.accepts(result.getQuery().getInput().append(sym))) {
+                System.out.println("Tetsing against " + result.getQuery().getInput().concat(sym));
+                if (!hypothesis.accepts(result.getQuery().getInput().concat(sym))) {
 
-                    return new DefaultQuery<>(result.getQuery().getInput().append(sym), true);
+                    return new DefaultQuery<>(result.getQuery().getInput().concat(sym), true);
                 }
             }
         }
