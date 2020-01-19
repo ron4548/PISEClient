@@ -60,7 +60,7 @@ public class MyTest {
         ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new WpMethodEQOracle.DFAWpMethodEQOracle<>(mqOracle, 2, 200);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new RandomWpMethodEQOracle.DFARandomWpMethodEQOracle<>(mqOracle, 3, 7, 100, 20);
 
         eqoracle = new ProtocolInferenceEQOracle(probingCache, eqoracle);
 

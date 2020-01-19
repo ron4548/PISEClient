@@ -25,9 +25,11 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
 
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
             for (InferenceClient.ProbingResult res : cache) {
-                if (res.getDiscoveredSymbols().stream().anyMatch(MessageTypeSymbol::isAny)) {
-                    continue;
-                }
+//                if (res.getDiscoveredSymbols().stream().anyMatch(MessageTypeSymbol::isAny)) {
+////                    System.out.println("Skipping result with any:");
+////                    System.out.println(res.getQuery());
+//                    continue;
+//                }
                 Word<MessageTypeSymbol> cachedPrefix = res.getQuery().getInput();
                 Set<MessageTypeSymbol> cachedContinuations = res.getDiscoveredSymbols();
                 if (cachedPrefix.isPrefixOf(query.getInput()) && cachedPrefix.length() < query.getInput().length()) {
@@ -43,9 +45,18 @@ public class ProbingCache implements MembershipOracle.DFAMembershipOracle<Messag
             }
         }
 
-        ArrayList<Query<MessageTypeSymbol, Boolean>> newQueries = new ArrayList<>(collection);
-        newQueries.removeAll(answered);
-        innerOracle.processQueries(newQueries);
+        ArrayList<Query<MessageTypeSymbol, Boolean>> unansweredQueries = new ArrayList<>(collection);
+        unansweredQueries.removeAll(answered);
+//        ArrayList<Query<MessageTypeSymbol, Boolean>> prefixes = new ArrayList<>(unansweredQueries);
+//        ArrayList<Query<MessageTypeSymbol, Boolean>> longestPrefix = new ArrayList<>();
+        unansweredQueries.sort(Comparator.comparingInt(q -> q.getInput().length()));
+//        for (Query<MessageTypeSymbol, Boolean> query : unansweredQueries) {
+//            if (unansweredQueries.stream().anyMatch(otherQuery -> !otherQuery.equals(query) && otherQuery.getInput().isPrefixOf(query.getInput()))) {
+//                longestPrefix.add(query);
+//            }
+//        }
+//        prefixes.removeAll(longestPrefix);
+        innerOracle.processQueries(unansweredQueries);
     }
 
     public void insertToCache(InferenceClient.ProbingResult result) {
