@@ -4,44 +4,36 @@ import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFA;
 import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFABuilder;
 import de.learnlib.api.oracle.EquivalenceOracle;
 import de.learnlib.api.query.DefaultQuery;
-import de.learnlib.datastructure.observationtable.writer.ObservationTableASCIIWriter;
 import de.learnlib.filter.cache.dfa.DFACacheOracle;
 import de.learnlib.filter.statistic.oracle.CounterOracle;
 import de.learnlib.oracle.equivalence.*;
 import net.automatalib.automata.fsa.DFA;
-import net.automatalib.incremental.dfa.tree.IncrementalPCDFATreeBuilder;
 import net.automatalib.serialization.dot.GraphDOT;
 import net.automatalib.visualization.Visualization;
 import net.automatalib.words.Alphabet;
-import net.automatalib.words.Word;
 import net.automatalib.words.impl.SimpleAlphabet;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.lang.reflect.Field;
+import java.io.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.List;
+import java.util.logging.Logger;
 
-public class MyTest {
 
+public class PiseLearner {
+
+    private final static Logger LOGGER = Logger.getLogger(PiseLearner.class.getName());
     private static final int EXPLORATION_DEPTH = 1;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 
         LocalDateTime startTime = LocalDateTime.now();
         Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
 
         InferenceClient client = new InferenceClient();
         client.setAlphabet(alphabet);
-        try {
-//            client.startConnection("10.10.43.26", 8080);
-            client.startConnection("127.0.0.1", 8080);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        client.startConnection("127.0.0.1", 8080);
 
         List<InferenceClient.ProbingResult> probingResults = new ArrayList<>();
 
@@ -61,7 +53,7 @@ public class MyTest {
         internal.setListener(listener);
 
         EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new RandomWpMethodEQOracle.DFARandomWpMethodEQOracle<>(mqOracle, 3, 7, 100, 20);
-
+        eqoracle = new IncrementalWMethodEQOracle.DFAIncrementalWMethodEQOracle<>(mqOracle, alphabet, 3);
         eqoracle = new ProtocolInferenceEQOracle(probingCache, eqoracle);
 
         DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
@@ -75,7 +67,7 @@ public class MyTest {
             } else {
                 boolean refined = learner.refineHypothesis(counterexample);
                 if (!refined) {
-                    System.err.println("******** No refinement effected by counterexample!");
+                    LOGGER.warning(String.format("No refinement for counterexample: %s", counterexample));
                 }
             }
             do {
@@ -85,7 +77,7 @@ public class MyTest {
                     probingCache.insertToCache(result);
                     for (MessageTypeSymbol newSymbol : result.getDiscoveredSymbols()) {
                         if (newSymbol.isAny()) {
-                            System.out.println("Ignoring ANY symbol...");
+                            LOGGER.fine(String.format("Ignoring ANY symbol, ID: %d", newSymbol.getId()));
                             continue;
                         }
 
@@ -95,12 +87,34 @@ public class MyTest {
                 }
             } while(!probingResults.isEmpty());
 //            Visualization.visualize(learner.getHypothesisModel(), alphabet);
-            System.out.println("******** Looking for counterexample...");
             LocalDateTime eqStartTime = LocalDateTime.now();
+
             counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
+            do {
+                List<InferenceClient.ProbingResult> toAdd = new ArrayList<>(probingResults);
+                probingResults.clear();
+                for (InferenceClient.ProbingResult result : toAdd) {
+                    probingCache.insertToCache(result);
+                    for (MessageTypeSymbol newSymbol : result.getDiscoveredSymbols()) {
+                        if (newSymbol.isAny()) {
+                            LOGGER.fine(String.format("Ignoring ANY symbol, ID: %d", newSymbol.getId()));
+                            continue;
+                        }
+
+                        cacheOracle.addAlphabetSymbol(newSymbol);
+                        learner.addAlphabetSymbol(newSymbol);
+                    }
+                }
+
+                if (!toAdd.isEmpty()) {
+                    counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
+                }
+
+            } while(!probingResults.isEmpty());
+
             Duration duration = Duration.between(eqStartTime, LocalDateTime.now());
-            System.out.printf("******** Conterexample: %s\n", counterexample);
-            System.out.printf("******** Time to find: %d ms\n", duration.getNano() / 1000000);
+            LOGGER.info(String.format("Conterexample: %s\nTime to find: %d ms",
+                    counterexample, duration.getNano() / 1000000));
 
         } while (counterexample != null);
 
@@ -112,21 +126,15 @@ public class MyTest {
 //
 //        experiment.run();
 
-
-        try {
-            client.stopConnection();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        client.stopConnection();
 
         for (MessageTypeSymbol mts : alphabet) {
             System.out.printf("MSG ID %d: %s\n", mts.getId(), mts.getPredicateDescription());
         }
 
         Duration duration = Duration.between(startTime, LocalDateTime.now());
-        System.out.printf("******** It took me %s seconds\n", duration.getSeconds());
-        System.out.printf("******** Membership queries: %d\n", mqOracle.getCount());
-        System.out.printf("******** Cache miss rate: %f\n", (float)internalCounter.getCount() / mqOracle.getCount());
+        LOGGER.info(String.format("Total learning time: %s seconds\nMembership queries: %d\nCache miss rate: %f",
+                duration.getSeconds(), mqOracle.getCount(), (float)internalCounter.getCount() / mqOracle.getCount()));
 
         List<InferenceClient.QueryStats> stats = client.getStats();
 
@@ -143,11 +151,12 @@ public class MyTest {
         DFA<?, MessageTypeSymbol> result = learner.getHypothesisModel();
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter("result_model.dot"));
-            GraphDOT.write(result, alphabet, writer);
+            GraphDOT.write(result, alphabet, writer, new RemoveNonAcceptingStatesVisualizationHelper<>());
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Visualization.visualize(learner.getHypothesisModel(), alphabet);
+        Visualization.visualize(result.transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
+
     }
 }

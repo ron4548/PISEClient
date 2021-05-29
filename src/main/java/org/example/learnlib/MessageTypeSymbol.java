@@ -55,7 +55,7 @@ public class MessageTypeSymbol {
 
     @Override
     public String toString() {
-        return String.format("[%s]: %s (%d)", this.type.toString(), this.getName(), this.getId());
+        return String.format("[%c]: %s (%d)", this.getType() == Type.SEND ? '⇗' : '⇘', this.getName(), this.getId());
     }
 
     @Override

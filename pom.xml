@@ -42,7 +42,6 @@
             <groupId>de.learnlib.testsupport</groupId>
             <artifactId>learnlib-learning-examples</artifactId>
             <version>${learnlib.version}</version>
-            <scope>pom</scope>
         </dependency>
 
         <!-- provide an SLF4J implementation -->

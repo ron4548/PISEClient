@@ -3,6 +3,7 @@ package org.example.learnlib;
 import de.learnlib.api.oracle.MembershipOracle;
 import de.learnlib.api.query.Query;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -19,7 +20,12 @@ public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMe
     @Override
     public void processQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
         if (collection.size() == 0) return;
-        List<InferenceClient.ProbingResult> results = client.sendBatchMembershipQueries(collection);
+        List<InferenceClient.ProbingResult> results = null;
+        try {
+            results = client.sendBatchMembershipQueries(collection);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         if (this.listener != null) {
             listener.onNewSymbols(results);
         }

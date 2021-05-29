@@ -6,19 +6,17 @@ import net.automatalib.words.Word;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.logging.Logger;
 
 class InferenceClient {
+    private final static Logger LOGGER = Logger.getLogger(InferenceClient.class.getName());
     private Socket clientSocket;
-    private PrintWriter out;
-    private BufferedReader in;
+    private DataOutputStream out;
+    private DataInputStream in;
     private Alphabet<MessageTypeSymbol> alphabet;
     private List<QueryStats> stats;
 
@@ -28,21 +26,38 @@ class InferenceClient {
 
     void startConnection(String ip, int port) throws IOException {
         clientSocket = new Socket(ip, port);
-        out = new PrintWriter(clientSocket.getOutputStream(), true);
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        out = new DataOutputStream((clientSocket.getOutputStream()));
+        in = new DataInputStream(clientSocket.getInputStream());
         this.stats = new ArrayList<>();
     }
 
+    private void sendJson(JSONObject json) throws IOException {
+        byte[] data = json.toString().getBytes(StandardCharsets.UTF_8);
+        out.writeInt(data.length);
+        out.flush();
+        out.write(data);
+        out.flush();
+    }
+
+    private JSONObject readJson() throws IOException {
+        int length = in.readInt();
+        if (length > 0) {
+            byte[] data = new byte[length];
+            in.readFully(data, 0, data.length);
+            return new JSONObject(new String(data, StandardCharsets.UTF_8));
+        }
+
+        return null;
+    }
+
     @Deprecated
-    List<MessageTypeSymbol> probe(Word<MessageTypeSymbol> prefix, Alphabet<MessageTypeSymbol> knownSymbols) {
+    List<MessageTypeSymbol> probe(Word<MessageTypeSymbol> prefix, Alphabet<MessageTypeSymbol> knownSymbols) throws IOException {
         JSONObject queryJson = new JSONObject();
         queryJson.put("type", "probe");
         queryJson.put("prefix", symbolsArrayToJson(prefix.asList()));
         queryJson.put("alphabet", symbolsArrayToJson(knownSymbols));
 
-        out.println(queryJson.toString());
-
-        out.println("DONE");
+        this.sendJson(queryJson);
 
         try {
             String output = in.readLine();
@@ -53,8 +68,10 @@ class InferenceClient {
                 JSONObject symbolJson = (JSONObject)objectJson;
                 newSymbols.add(MessageTypeSymbol.fromJson(symbolJson));
             }
-            System.out.println("Probe query found:");
-            newSymbols.forEach(msg -> System.out.println(msg.getPredicateDescription()));
+            StringWriter writer = new StringWriter();
+            writer.write("Probe query found:\n");
+            newSymbols.forEach(msg -> writer.write(msg.getPredicateDescription() + '\n'));
+            LOGGER.fine(writer.toString());
             return newSymbols;
         } catch (IOException e) {
             e.printStackTrace();
@@ -64,7 +81,7 @@ class InferenceClient {
     }
 
     @Deprecated
-    boolean sendMembershipQuery(Query<MessageTypeSymbol, Boolean> query) {
+    boolean sendMembershipQuery(Query<MessageTypeSymbol, Boolean> query) throws IOException {
         JSONObject queryJson = new JSONObject();
         queryJson.put("type", "membership");
         JSONArray querySymbolsJson = new JSONArray();
@@ -72,9 +89,8 @@ class InferenceClient {
             querySymbolsJson.put(symbol.asJSON());
         }
         queryJson.put("input", querySymbolsJson);
-        out.println(queryJson.toString());
+        this.sendJson(queryJson);
         System.out.println(query.getInput().toString());
-        out.println("DONE");
 
         try {
             String output = in.readLine();
@@ -109,14 +125,14 @@ class InferenceClient {
         return queryJson;
     }
 
-    List<ProbingResult> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) {
-        System.out.printf("Sending batch of %d queries...\n", collection.size());
+    List<ProbingResult> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) throws IOException {
+        LOGGER.fine(String.format("Sending batch of %d queries...", collection.size()));
 
         JSONObject batchJson = new JSONObject();
         batchJson.put("type", "membership_batch");
 
         // Put current alphabet, for probing
-        batchJson.put("alphabet", symbolsArrayToJson(this.alphabet));
+//        batchJson.put("alphabet", symbolsArrayToJson(this.alphabet));
 
         // Put all the queries
         JSONArray queriesArrayJson = new JSONArray();
@@ -124,12 +140,10 @@ class InferenceClient {
             queriesArrayJson.put(queryToJson(query));
         }
         batchJson.put("queries", queriesArrayJson);
-        out.println(batchJson.toString());
-        out.println("DONE");
+        this.sendJson(batchJson);
         List<ProbingResult> results = new ArrayList<>();
         try {
-            String output = in.readLine();
-            JSONArray queryResultsJson = new JSONArray(output);
+            JSONArray queryResultsJson = this.readJson().getJSONArray("result");
 
             int i = 0;
             for (Query<MessageTypeSymbol, Boolean> query : collection) {
@@ -141,7 +155,7 @@ class InferenceClient {
                 this.stats.add(s);
 
                 if (result) {
-                    JSONArray newSymbolsJson = new JSONArray(queryResultJson.getString("probe_result"));
+                    JSONArray newSymbolsJson = queryResultJson.getJSONArray("probe_result");
                     Set<MessageTypeSymbol> newSymbols = new HashSet<>(newSymbolsJson.length());
                     for (Object objectJson : newSymbolsJson) {
                         JSONObject symbolJson = (JSONObject) objectJson;
@@ -149,11 +163,15 @@ class InferenceClient {
                     }
 
                     results.add(new ProbingResult(query, newSymbols));
-                    System.out.println(query);
+                    StringWriter writer = new StringWriter();
+                    writer.write(query.toString() + '\n');
                     if (newSymbols.size() > 0) {
-                        System.out.println("Probing found:");
-                        newSymbols.forEach(msg -> System.out.println(msg.toString()));
+                        writer.write("Probing found:\n");
+                        newSymbols.forEach(msg -> writer.write(msg.toString() + '\n'));
+                    } else {
+                        writer.write("No symbols probed\n");
                     }
+                    LOGGER.info(writer.toString());
                 }
             }
             return results;
@@ -165,7 +183,8 @@ class InferenceClient {
     }
 
     void stopConnection() throws IOException {
-        out.println("BYE");
+        out.writeInt(0);
+        out.flush();
         in.close();
         out.close();
         clientSocket.close();
@@ -191,11 +210,11 @@ class InferenceClient {
         }
 
         public static QueryStats fromJson(Query<MessageTypeSymbol, Boolean> query, JSONObject queryResultJson) {
-            long membershipTime = queryResultJson.getLong("membership_time");
+//            long membershipTime = queryResultJson.getLong("membership_time");
             long preProbeTime = queryResultJson.has("pre_probe_time") ? queryResultJson.getLong("pre_probe_time") : 0;
             long probeTime = queryResultJson.has("probe_time") ? queryResultJson.getLong("probe_time") : 0;
 
-            return new QueryStats(query, queryResultJson.getBoolean("answer"), membershipTime, preProbeTime, probeTime);
+            return new QueryStats(query, queryResultJson.getBoolean("answer"), 0, preProbeTime, probeTime);
         }
 
         public long getMembershipTime() {
