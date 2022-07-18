@@ -126,7 +126,7 @@ class InferenceClient {
     }
 
     List<ProbingResult> sendBatchMembershipQueries(Collection<? extends Query<MessageTypeSymbol, Boolean>> collection) throws IOException {
-        LOGGER.fine(String.format("Sending batch of %d queries...", collection.size()));
+        LOGGER.info(String.format("Sending batch of %d queries...", collection.size()));
 
         JSONObject batchJson = new JSONObject();
         batchJson.put("type", "membership_batch");
@@ -138,6 +138,7 @@ class InferenceClient {
         JSONArray queriesArrayJson = new JSONArray();
         for (Query<MessageTypeSymbol, Boolean> query : collection) {
             queriesArrayJson.put(queryToJson(query));
+            LOGGER.info(query.toString());
         }
         batchJson.put("queries", queriesArrayJson);
         this.sendJson(batchJson);
@@ -167,7 +168,7 @@ class InferenceClient {
                     writer.write(query.toString() + '\n');
                     if (newSymbols.size() > 0) {
                         writer.write("Probing found:\n");
-                        newSymbols.forEach(msg -> writer.write(msg.toString() + '\n'));
+                        newSymbols.forEach(msg -> writer.write(msg.getPredicateDescription() + '\n'));
                     } else {
                         writer.write("No symbols probed\n");
                     }

@@ -34,11 +34,14 @@ public class MessageTypeSymbol {
     private String name;
     private Map<Integer, Character> predicate;
 
+    private int hash;
+
     MessageTypeSymbol(int id, Type type, String name, Map<Integer, Character> predicate) {
         this.id = id;
         this.name = name;
-        this.predicate = predicate;
+        this.predicate = Collections.unmodifiableMap(predicate);
         this.type = type;
+        this.hash = this.predicate.hashCode();
     }
 
     String getName() {
@@ -55,7 +58,7 @@ public class MessageTypeSymbol {
 
     @Override
     public String toString() {
-        return String.format("[%c]: %s (%d)", this.getType() == Type.SEND ? '⇗' : '⇘', this.getName(), this.getId());
+        return String.format("[%c:%d]", this.getType() == Type.SEND ? 'S' : 'R', this.getId());
     }
 
     @Override
@@ -64,7 +67,7 @@ public class MessageTypeSymbol {
             return false;
         }
 
-        boolean ans = this.getPredicateDescription().equals(((MessageTypeSymbol)obj).getPredicateDescription()) && this.type == ((MessageTypeSymbol) obj).type;
+        boolean ans = this.predicate.equals(((MessageTypeSymbol) obj).predicate) && this.type == ((MessageTypeSymbol) obj).type;
 
 //        if (ans) {
 //            System.out.println("Two symbols found to be the same:");
@@ -77,7 +80,7 @@ public class MessageTypeSymbol {
 
     @Override
     public int hashCode() {
-        return this.getPredicateDescription().hashCode();
+        return this.hash;
     }
 
     JSONObject asJSON() {
@@ -95,7 +98,7 @@ public class MessageTypeSymbol {
 
     String getPredicateDescription() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("{%s} [%s] ", this.type.toString(), this.name));
+        sb.append(String.format("[%c:%06d]\t{%s} ", this.type == Type.SEND ? 'S' : 'R', this.id, this.name));
         if (this.predicate.size() == 0) {
             return sb.toString();
         }

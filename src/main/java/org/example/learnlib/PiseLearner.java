@@ -1,5 +1,6 @@
 package org.example.learnlib;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFA;
 import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFABuilder;
 import de.learnlib.api.oracle.EquivalenceOracle;
@@ -14,6 +15,7 @@ import net.automatalib.words.Alphabet;
 import net.automatalib.words.impl.SimpleAlphabet;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -27,6 +29,7 @@ public class PiseLearner {
     private static final int EXPLORATION_DEPTH = 1;
 
     public static void main(String[] args) throws IOException {
+        int conjecture = 0;
 
         LocalDateTime startTime = LocalDateTime.now();
         Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
@@ -52,11 +55,11 @@ public class PiseLearner {
         ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new RandomWpMethodEQOracle.DFARandomWpMethodEQOracle<>(mqOracle, 3, 7, 100, 20);
-        eqoracle = new IncrementalWMethodEQOracle.DFAIncrementalWMethodEQOracle<>(mqOracle, alphabet, 3);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new RandomWpMethodEQOracle.DFARandomWpMethodEQOracle<>(mqOracle, 2, 20, 100000, 20);
+    //    eqoracle = new IncrementalWMethodEQOracle.DFAIncrementalWMethodEQOracle<>(mqOracle, alphabet, 3);
         eqoracle = new ProtocolInferenceEQOracle(probingCache, eqoracle);
 
-        DefaultQuery<MessageTypeSymbol, Boolean> counterexample = null;
+        ArrayList<DefaultQuery<MessageTypeSymbol, Boolean>> counterexamples = new ArrayList<>();
         boolean init = false;
         do {
 //            System.out.println("Final observation table:");
@@ -65,10 +68,14 @@ public class PiseLearner {
                 learner.startLearning();
                 init = true;
             } else {
-                boolean refined = learner.refineHypothesis(counterexample);
-                if (!refined) {
-                    LOGGER.warning(String.format("No refinement for counterexample: %s", counterexample));
+                for  (DefaultQuery<MessageTypeSymbol, Boolean> cex : counterexamples) {
+                    boolean refined = learner.refineHypothesis(cex);
+                    if (!refined) {
+                        LOGGER.warning(String.format("No refinement for counterexample: %s", cex));
+                    }
                 }
+
+                counterexamples.clear();
             }
             do {
                 List<InferenceClient.ProbingResult> toAdd = new ArrayList<>(probingResults);
@@ -81,16 +88,37 @@ public class PiseLearner {
                             continue;
                         }
 
-                        cacheOracle.addAlphabetSymbol(newSymbol);
-                        learner.addAlphabetSymbol(newSymbol);
+                        if (!alphabet.contains(newSymbol)) {
+                            LOGGER.info(String.format("New alphabet symbol: %s", newSymbol.getPredicateDescription()));
+                            cacheOracle.addAlphabetSymbol(newSymbol);
+                            learner.addAlphabetSymbol(newSymbol);
+                        }
+
+                        boolean refined = learner.refineHypothesis(new DefaultQuery<>(result.getQuery().getInput().append(newSymbol), true));
+                        if (refined) {
+                            LOGGER.info(String.format("Refinement occured for: %s", result.getQuery().getInput().append(newSymbol)));
+                        }
                     }
                 }
             } while(!probingResults.isEmpty());
-//            Visualization.visualize(learner.getHypothesisModel(), alphabet);
-            LocalDateTime eqStartTime = LocalDateTime.now();
 
-            counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
+            LocalDateTime eqStartTime = LocalDateTime.now();
             do {
+                LOGGER.info(String.format("Conjecture: %d. Looking for counterexample", conjecture));
+//                Visualization.visualize(learner.getHypothesisModel().transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
+
+                try {
+                    BufferedWriter writer = new BufferedWriter(new FileWriter(String.format("conjecture_%d.dot", conjecture++)));
+                    GraphDOT.write(learner.getHypothesisModel(), alphabet, writer, new RemoveNonAcceptingStatesVisualizationHelper<>());
+                    writer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                DefaultQuery<MessageTypeSymbol, Boolean> cex = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
+                if (cex != null) {
+                    counterexamples.add(cex);
+                }
                 List<InferenceClient.ProbingResult> toAdd = new ArrayList<>(probingResults);
                 probingResults.clear();
                 for (InferenceClient.ProbingResult result : toAdd) {
@@ -101,22 +129,29 @@ public class PiseLearner {
                             continue;
                         }
 
+                        counterexamples.add(new DefaultQuery<>(result.getQuery().getInput().append(newSymbol), true));
+
+                        if (alphabet.contains(newSymbol)) {
+//                            LOGGER.info("alphabet already exist");
+                            continue;
+                        }
+
+                        LOGGER.info(String.format("New alphabet symbol: %s", newSymbol.getPredicateDescription()));
+
                         cacheOracle.addAlphabetSymbol(newSymbol);
                         learner.addAlphabetSymbol(newSymbol);
                     }
                 }
 
-                if (!toAdd.isEmpty()) {
-                    counterexample = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
-                }
-
             } while(!probingResults.isEmpty());
 
             Duration duration = Duration.between(eqStartTime, LocalDateTime.now());
-            LOGGER.info(String.format("Conterexample: %s\nTime to find: %d ms",
-                    counterexample, duration.getNano() / 1000000));
+            LOGGER.info(String.format("Counterexamples: Time to find: %d ms", duration.getNano() / 1000000));
+            for (DefaultQuery<MessageTypeSymbol, Boolean> cex : counterexamples) {
+                LOGGER.info(String.format("Counterexample: %s", cex));
+            }
 
-        } while (counterexample != null);
+        } while (!counterexamples.isEmpty());
 
 //        Experiment.DFAExperiment<MessageTypeSymbol> experiment = new Experiment.DFAExperiment<>(learner, wMethod, alphabet);
 //
@@ -129,7 +164,7 @@ public class PiseLearner {
         client.stopConnection();
 
         for (MessageTypeSymbol mts : alphabet) {
-            System.out.printf("MSG ID %d: %s\n", mts.getId(), mts.getPredicateDescription());
+            System.out.printf("MSG ID %06d:\t%s\n", mts.getId(), mts.getPredicateDescription());
         }
 
         Duration duration = Duration.between(startTime, LocalDateTime.now());
