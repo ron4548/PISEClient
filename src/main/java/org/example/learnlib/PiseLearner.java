@@ -97,6 +97,8 @@ public class PiseLearner {
                         boolean refined = learner.refineHypothesis(new DefaultQuery<>(result.getQuery().getInput().append(newSymbol), true));
                         if (refined) {
                             LOGGER.info(String.format("Refinement occured for: %s", result.getQuery().getInput().append(newSymbol)));
+                            outputGraph(learner, alphabet, "snapshot.dot");
+                            outputAlphabet(alphabet, "snapshot_alphabet.txt");
                         }
                     }
                 }
@@ -107,13 +109,8 @@ public class PiseLearner {
                 LOGGER.info(String.format("Conjecture: %d. Looking for counterexample", conjecture));
 //                Visualization.visualize(learner.getHypothesisModel().transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
 
-                try {
-                    BufferedWriter writer = new BufferedWriter(new FileWriter(String.format("conjecture_%d.dot", conjecture++)));
-                    GraphDOT.write(learner.getHypothesisModel(), alphabet, writer, new RemoveNonAcceptingStatesVisualizationHelper<>());
-                    writer.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                outputGraph(learner, alphabet, String.format("conjecture_%d.dot", conjecture));
+                outputAlphabet(alphabet,  String.format("conjecture_%d_alphabet.txt", conjecture++));
 
                 DefaultQuery<MessageTypeSymbol, Boolean> cex = eqoracle.findCounterExample(learner.getHypothesisModel(), alphabet);
                 if (cex != null) {
@@ -163,10 +160,6 @@ public class PiseLearner {
 
         client.stopConnection();
 
-        for (MessageTypeSymbol mts : alphabet) {
-            System.out.printf("MSG ID %06d:\t%s\n", mts.getId(), mts.getPredicateDescription());
-        }
-
         Duration duration = Duration.between(startTime, LocalDateTime.now());
         LOGGER.info(String.format("Total learning time: %s seconds\nMembership queries: %d\nCache miss rate: %f",
                 duration.getSeconds(), mqOracle.getCount(), (float)internalCounter.getCount() / mqOracle.getCount()));
@@ -184,14 +177,34 @@ public class PiseLearner {
         }
 
         DFA<?, MessageTypeSymbol> result = learner.getHypothesisModel();
+        outputGraph(learner, alphabet, "final_graph.dot");
+        outputAlphabet(alphabet, "final_alphabet.txt");
+
+
+        Visualization.visualize(result.transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
+
+    }
+
+    private static void outputGraph(ClassicLStarDFA<MessageTypeSymbol> learner, Alphabet<MessageTypeSymbol> alphabet, String filename) {
         try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter("result_model.dot"));
-            GraphDOT.write(result, alphabet, writer, new RemoveNonAcceptingStatesVisualizationHelper<>());
+            BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+            GraphDOT.write(learner.getHypothesisModel(), alphabet, writer, new RemoveNonAcceptingStatesVisualizationHelper<>());
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Visualization.visualize(result.transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
+    }
 
+    private static void outputAlphabet(Alphabet<MessageTypeSymbol> alphabet, String filename) {
+        try {
+            FileWriter writer = new FileWriter(filename);
+            for (MessageTypeSymbol mts : alphabet) {
+                writer.write(String.format("MSG ID %06d:\t%s\n", mts.getId(), mts.getPredicateDescription()));
+            }
+            writer.close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
