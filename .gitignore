@@ -74,6 +74,5 @@ buildNumber.properties
 # End of https://www.toptal.com/developers/gitignore/api/maven,java,visualstudiocode
 
 # Project Specific
-result_model.dot
+out/
 stats.csv
-conjecture_*.dot

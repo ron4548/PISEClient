@@ -13,6 +13,7 @@ import net.automatalib.serialization.dot.GraphDOT;
 import net.automatalib.visualization.Visualization;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.impl.SimpleAlphabet;
+import de.learnlib.datastructure.observationtable.OTUtils;
 
 import java.io.*;
 import java.lang.reflect.Array;
@@ -27,6 +28,7 @@ public class PiseLearner {
 
     private final static Logger LOGGER = Logger.getLogger(PiseLearner.class.getName());
     private static final int EXPLORATION_DEPTH = 1;
+    private final static String OUT_DIR = "./out/";
 
     public static void main(String[] args) throws IOException {
         int conjecture = 0;
@@ -70,6 +72,8 @@ public class PiseLearner {
             } else {
                 for  (DefaultQuery<MessageTypeSymbol, Boolean> cex : counterexamples) {
                     boolean refined = learner.refineHypothesis(cex);
+                    outputGraph(learner, alphabet, "snapshot.dot");
+                    outputAlphabet(alphabet, "snapshot_alphabet.txt");
                     if (!refined) {
                         LOGGER.warning(String.format("No refinement for counterexample: %s", cex));
                     }
@@ -92,6 +96,8 @@ public class PiseLearner {
                             LOGGER.info(String.format("New alphabet symbol: %s", newSymbol.getPredicateDescription()));
                             cacheOracle.addAlphabetSymbol(newSymbol);
                             learner.addAlphabetSymbol(newSymbol);
+                            outputGraph(learner, alphabet, "snapshot.dot");
+                            outputAlphabet(alphabet, "snapshot_alphabet.txt");
                         }
 
                         boolean refined = learner.refineHypothesis(new DefaultQuery<>(result.getQuery().getInput().append(newSymbol), true));
@@ -126,7 +132,9 @@ public class PiseLearner {
                             continue;
                         }
 
-                        counterexamples.add(new DefaultQuery<>(result.getQuery().getInput().append(newSymbol), true));
+                        if (!learner.getHypothesisModel().accepts(result.getQuery().getInput().append(newSymbol))) {
+                            counterexamples.add(new DefaultQuery<>(result.getQuery().getInput().append(newSymbol), true));
+                        }
 
                         if (alphabet.contains(newSymbol)) {
 //                            LOGGER.info("alphabet already exist");
@@ -137,6 +145,8 @@ public class PiseLearner {
 
                         cacheOracle.addAlphabetSymbol(newSymbol);
                         learner.addAlphabetSymbol(newSymbol);
+                        outputGraph(learner, alphabet, "snapshot.dot");
+                        outputAlphabet(alphabet, "snapshot_alphabet.txt");
                     }
                 }
 
@@ -144,6 +154,7 @@ public class PiseLearner {
 
             Duration duration = Duration.between(eqStartTime, LocalDateTime.now());
             LOGGER.info(String.format("Counterexamples: Time to find: %d ms", duration.getNano() / 1000000));
+            outputCex(counterexamples, String.format("cex_%d.txt", conjecture));
             for (DefaultQuery<MessageTypeSymbol, Boolean> cex : counterexamples) {
                 LOGGER.info(String.format("Counterexample: %s", cex));
             }
@@ -185,11 +196,24 @@ public class PiseLearner {
 
     }
 
+    private static void outputCex(List<DefaultQuery<MessageTypeSymbol, Boolean>> counterexamples, String filename) {
+        try {
+            FileWriter writer = new FileWriter(OUT_DIR + filename);
+            for (DefaultQuery<MessageTypeSymbol, Boolean> cex : counterexamples) {
+                writer.write(cex.toString() + "\n");
+            }
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static void outputGraph(ClassicLStarDFA<MessageTypeSymbol> learner, Alphabet<MessageTypeSymbol> alphabet, String filename) {
         try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+            BufferedWriter writer = new BufferedWriter(new FileWriter(OUT_DIR + filename));
             GraphDOT.write(learner.getHypothesisModel(), alphabet, writer, new RemoveNonAcceptingStatesVisualizationHelper<>());
             writer.close();
+            Runtime.getRuntime().exec(new String[] {"dot", "-O", "-Tpng", OUT_DIR + filename } );
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -197,7 +221,7 @@ public class PiseLearner {
 
     private static void outputAlphabet(Alphabet<MessageTypeSymbol> alphabet, String filename) {
         try {
-            FileWriter writer = new FileWriter(filename);
+            FileWriter writer = new FileWriter(OUT_DIR + filename);
             for (MessageTypeSymbol mts : alphabet) {
                 writer.write(String.format("MSG ID %06d:\t%s\n", mts.getId(), mts.getPredicateDescription()));
             }
