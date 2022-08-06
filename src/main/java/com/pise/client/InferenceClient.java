@@ -1,4 +1,4 @@
-package org.example.learnlib;
+package com.pise.client;
 
 import de.learnlib.api.query.Query;
 import net.automatalib.words.Alphabet;

@@ -1,4 +1,4 @@
-package org.example.learnlib;
+package com.pise.client;
 
 import net.automatalib.util.graphs.traversal.BaseDFSVisitor;
 import net.automatalib.visualization.VisualizationHelper;

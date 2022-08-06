@@ -1,4 +1,4 @@
-package org.example.learnlib;
+package com.pise.client;
 
 import org.json.JSONObject;
 

@@ -1,22 +1,19 @@
-package org.example.learnlib;
+package com.pise.client;
 
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFA;
 import de.learnlib.algorithms.lstar.dfa.ClassicLStarDFABuilder;
 import de.learnlib.api.oracle.EquivalenceOracle;
 import de.learnlib.api.query.DefaultQuery;
 import de.learnlib.filter.cache.dfa.DFACacheOracle;
-import de.learnlib.filter.statistic.oracle.CounterOracle;
+import de.learnlib.filter.statistic.oracle.DFACounterOracle;
 import de.learnlib.oracle.equivalence.*;
 import net.automatalib.automata.fsa.DFA;
 import net.automatalib.serialization.dot.GraphDOT;
 import net.automatalib.visualization.Visualization;
+import net.automatalib.words.GrowingAlphabet;
 import net.automatalib.words.Alphabet;
-import net.automatalib.words.impl.SimpleAlphabet;
-import de.learnlib.datastructure.observationtable.OTUtils;
-
+import net.automatalib.words.impl.GrowingMapAlphabet;
 import java.io.*;
-import java.lang.reflect.Array;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -39,7 +36,7 @@ public class PiseLearner {
         }
 
         LocalDateTime startTime = LocalDateTime.now();
-        Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
+        GrowingAlphabet<MessageTypeSymbol> alphabet = new GrowingMapAlphabet<>();
 
         InferenceClient client = new InferenceClient();
         client.setAlphabet(alphabet);
@@ -48,11 +45,11 @@ public class PiseLearner {
         List<InferenceClient.ProbingResult> probingResults = new ArrayList<>();
 
         ProtocolInferenceMembershipOracle internal = new ProtocolInferenceMembershipOracle(client);
-        CounterOracle.DFACounterOracle<MessageTypeSymbol> internalCounter = new CounterOracle.DFACounterOracle<>(internal,"internal");
+        DFACounterOracle<MessageTypeSymbol> internalCounter = new DFACounterOracle<>(internal,"internal");
         ProbingCache probingCache = new ProbingCache(internalCounter);
         DFACacheOracle<MessageTypeSymbol> cacheOracle = DFACacheOracle.createTreePCCacheOracle(alphabet, probingCache);
 
-        CounterOracle.DFACounterOracle<MessageTypeSymbol> mqOracle = new CounterOracle.DFACounterOracle<>(cacheOracle, "cache");
+        DFACounterOracle<MessageTypeSymbol> mqOracle = new DFACounterOracle<>(cacheOracle, "cache");
         
         ClassicLStarDFA<MessageTypeSymbol> learner = new ClassicLStarDFABuilder<MessageTypeSymbol>()
                 .withAlphabet(alphabet)
@@ -62,7 +59,7 @@ public class PiseLearner {
         ProtocolInferenceMembershipOracle.NewSymbolFoundListener listener = probingResults::addAll;
         internal.setListener(listener);
 
-        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new RandomWpMethodEQOracle.DFARandomWpMethodEQOracle<>(mqOracle, 2, 20, 100000, 20);
+        EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> eqoracle = new DFARandomWpMethodEQOracle<>(mqOracle, 2, 20, 100000, 20);
     //    eqoracle = new IncrementalWMethodEQOracle.DFAIncrementalWMethodEQOracle<>(mqOracle, alphabet, 3);
         eqoracle = new ProtocolInferenceEQOracle(probingCache, eqoracle);
 

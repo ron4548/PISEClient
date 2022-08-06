@@ -1,4 +1,4 @@
-package org.example.learnlib;
+package com.pise.client;
 
 import de.learnlib.api.oracle.MembershipOracle;
 import de.learnlib.api.query.Query;
@@ -6,7 +6,6 @@ import de.learnlib.api.query.Query;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 public class ProtocolInferenceMembershipOracle implements MembershipOracle.DFAMembershipOracle<MessageTypeSymbol> {
 

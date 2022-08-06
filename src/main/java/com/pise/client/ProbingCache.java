@@ -1,4 +1,4 @@
-package org.example.learnlib;
+package com.pise.client;
 
 import de.learnlib.api.oracle.MembershipOracle;
 import de.learnlib.api.query.DefaultQuery;
@@ -7,7 +7,6 @@ import net.automatalib.automata.fsa.DFA;
 import net.automatalib.words.Word;
 
 import java.util.*;
-import java.util.stream.Stream;
 
 public class ProbingCache implements MembershipOracle.DFAMembershipOracle<MessageTypeSymbol> {
 

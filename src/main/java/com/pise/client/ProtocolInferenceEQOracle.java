@@ -1,12 +1,9 @@
-package org.example.learnlib;
+package com.pise.client;
 
 import de.learnlib.api.oracle.EquivalenceOracle;
 import de.learnlib.api.query.DefaultQuery;
 import net.automatalib.automata.fsa.DFA;
-import net.automatalib.serialization.dot.GraphDOT;
 
-import javax.annotation.Nullable;
-import java.io.IOException;
 import java.util.Collection;
 
 public class ProtocolInferenceEQOracle implements EquivalenceOracle.DFAEquivalenceOracle<MessageTypeSymbol> {
@@ -19,7 +16,6 @@ public class ProtocolInferenceEQOracle implements EquivalenceOracle.DFAEquivalen
         this.innerOracle = innerOracle;
     }
 
-    @Nullable
     @Override
     public DefaultQuery<MessageTypeSymbol, Boolean> findCounterExample(DFA<?, MessageTypeSymbol> hypothesis, Collection<? extends MessageTypeSymbol> alphabet) {
 
