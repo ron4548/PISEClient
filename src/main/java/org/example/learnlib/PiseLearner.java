@@ -33,6 +33,11 @@ public class PiseLearner {
     public static void main(String[] args) throws IOException {
         int conjecture = 0;
 
+        File outDir = new File(OUT_DIR);
+        if (!outDir.exists()) {
+            outDir.mkdir();
+        }
+
         LocalDateTime startTime = LocalDateTime.now();
         Alphabet<MessageTypeSymbol> alphabet = new SimpleAlphabet<>();
 
