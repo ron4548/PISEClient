@@ -27,7 +27,7 @@ public class PiseLearner {
     private static final int EXPLORATION_DEPTH = 1;
     private final static String OUT_DIR = "./out/";
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         int conjecture = 0;
 
         File outDir = new File(OUT_DIR);
@@ -40,7 +40,12 @@ public class PiseLearner {
 
         InferenceClient client = new InferenceClient();
         client.setAlphabet(alphabet);
-        client.startConnection("127.0.0.1", 8080);
+        try {
+            client.startConnection("127.0.0.1", 8080);
+        } catch (IOException e) {
+            LOGGER.warning("Failed connecting to PISEServer. Have you started one?");
+            return;
+        }
 
         List<InferenceClient.ProbingResult> probingResults = new ArrayList<>();
 
@@ -170,8 +175,11 @@ public class PiseLearner {
 //        experiment.setLogModels(true);
 //
 //        experiment.run();
-
-        client.stopConnection();
+        try {
+            client.stopConnection();
+        } catch (IOException e) {
+            LOGGER.warning("Failed stopping the connection to PISEServer.");
+        }
 
         Duration duration = Duration.between(startTime, LocalDateTime.now());
         LOGGER.info(String.format("Total learning time: %s seconds\nMembership queries: %d\nCache miss rate: %f",
@@ -194,8 +202,11 @@ public class PiseLearner {
         outputAlphabet(alphabet, "final_alphabet.txt");
 
 
-        Visualization.visualize(result.transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
-
+        // try {
+        //     Visualization.visualize(result.transitionGraphView(alphabet), new RemoveNonAcceptingStatesVisualizationHelper<>());
+        // } catch (Exception e) {
+        //     // We can live with that if the visualization fails
+        // }
     }
 
     private static void outputCex(List<DefaultQuery<MessageTypeSymbol, Boolean>> counterexamples, String filename) {
